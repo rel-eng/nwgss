@@ -18,6 +18,8 @@ module ru.releng.nwgss {
     requires com.sun.jna;
     requires com.sun.jna.platform;
 
+    exports ru.releng.nwgss;
+
     provides java.security.Provider with ru.releng.nwgss.SspiKrb5SaslProvider;
 
 }

@@ -13,6 +13,8 @@
 // limitations under the License.
 package ru.releng.nwgss;
 
+import ru.releng.nwgss.client.SspiKrb5SaslClientFactory;
+
 import java.security.AccessController;
 import java.security.InvalidParameterException;
 import java.security.PrivilegedAction;
