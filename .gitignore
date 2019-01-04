@@ -1,0 +1,9 @@
+*.iws
+*.ipr
+*.iml
+gradlew
+gradlew.bat
+.gradle/
+gradle/
+out/
+build/

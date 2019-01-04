@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+}
+
+group 'ru.releng'
+version '0.1'
+
+ext.moduleName = 'ru.releng.nwgss'
+
+sourceCompatibility = 1.11
+
+repositories {
+    mavenCentral()
+}
+
+compileJava {
+    inputs.property("moduleName", moduleName)
+    doFirst {
+        options.compilerArgs = [
+                '--module-path', classpath.asPath,
+        ]
+        classpath = files()
+    }
+}
+
+compileTestJava {
+    inputs.property("moduleName", moduleName)
+    doFirst {
+        options.compilerArgs = [
+                '--module-path', classpath.asPath,
+                '--add-modules', 'junit,java.naming',
+                '--add-reads', "$moduleName=junit,java.naming",
+                '--patch-module', "$moduleName=" + files(sourceSets.test.java.srcDirs).asPath,
+        ]
+        classpath = files()
+    }
+}
+
+dependencies {
+    compile group: 'net.java.dev.jna', name: 'jna', version: '5.2.0'
+    compile group: 'net.java.dev.jna', name: 'jna-platform', version: '5.2.0'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
