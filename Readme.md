@@ -1,7 +1,7 @@
 # README
 
 This is a limited implementation of SASL GSSAPI/Kerberos v5 client provider over native SSPI.
-The implementation is limited to the usage of the current user credentials for LDAP client connections.
+The implementation is limited to the usage of the current/specified user credentials for LDAP client connections.
 JPMS is required, implementation was tested on OpenJDK 11.
 The only external runtime dependency is JNA. 
 
@@ -15,7 +15,10 @@ Following configuration properties are implemented:
 * javax.security.sasl.maxbuffer
 * javax.security.sasl.sendmaxbuffer
 
-Some limited debug logging is available with java.util.logging
+User credentials are supplied using CallbackHandler, i.e. RealmCallback, NameCallback, PasswordCallback.
+Current user credentials are used unless the whole set of user credentials was provided.
+
+Some limited debug logging is available via java.util.logging
 
 All product names, trademarks and registered trademarks are property of their respective owners.
 All company, product and service names used are for identification purposes only.

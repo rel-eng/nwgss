@@ -36,6 +36,19 @@ compileTestJava {
     }
 }
 
+test {
+    inputs.property("moduleName", moduleName)
+    doFirst {
+        jvmArgs = [
+                '--module-path', classpath.asPath,
+                '--add-modules', 'ALL-MODULE-PATH',
+                '--add-reads', "$moduleName=junit,java.naming",
+                '--patch-module', "$moduleName=" + files(sourceSets.test.java.outputDir).asPath,
+        ]
+        classpath = files()
+    }
+}
+
 dependencies {
     compile group: 'net.java.dev.jna', name: 'jna', version: '5.2.0'
     compile group: 'net.java.dev.jna', name: 'jna-platform', version: '5.2.0'

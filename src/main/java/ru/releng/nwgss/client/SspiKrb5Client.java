@@ -18,13 +18,20 @@ import ru.releng.nwgss.sspi.ClientSecurityContext;
 import ru.releng.nwgss.sspi.CredentialsHandle;
 import ru.releng.nwgss.sspi.SecurityContextRequirements;
 
+import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.callback.NameCallback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+import javax.security.sasl.RealmCallback;
 import javax.security.sasl.Sasl;
 import javax.security.sasl.SaslClient;
 import javax.security.sasl.SaslException;
+import java.io.IOException;
 import java.lang.ref.Cleaner;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,8 +85,6 @@ public class SspiKrb5Client implements SaslClient {
     {
         this.servicePrincipalName = protocol + "/" + serverName;
         logger.log(Level.FINEST, "Requesting SPN: {0}", servicePrincipalName);
-        String targetName = Account.getCurrentUserNameSamCompatible();
-        logger.log(Level.FINEST, "Using credentials for {0}", targetName);
         if (props != null) {
             parseProperties(props);
         } else {
@@ -101,7 +106,7 @@ public class SspiKrb5Client implements SaslClient {
                 .setSequenceDetect(true)
                 .build();
         this.contextRequirements = requirements;
-        CredentialsHandle clientCredentials = CredentialsHandle.currentPrincipal(SECURITY_PACKAGE);
+        CredentialsHandle clientCredentials = prepareCredentials(cbh);
         // Must properly dispose of clientCredentials if constructor fails after this point
         ClientSecurityContext securityContext = new ClientSecurityContext(clientCredentials, requirements);
         this.disposableResources = new DisposableResources(clientCredentials, securityContext);
@@ -188,6 +193,52 @@ public class SspiKrb5Client implements SaslClient {
     @Override
     public void dispose() throws SaslException {
         cleanable.clean();
+    }
+
+    private CredentialsHandle prepareCredentials(CallbackHandler cbh) throws SaslException {
+        // Callbacks to retrieve user credentials
+        RealmCallback domainCallback = new RealmCallback("Domain: ");
+        NameCallback nameCallback = new NameCallback("Name: ");
+        PasswordCallback passwordCallback = new PasswordCallback("Password: ", false);
+        boolean callbackSuccess = false;
+        try {
+            cbh.handle(new Callback[] { domainCallback, nameCallback, passwordCallback });
+            callbackSuccess = true;
+        } catch (UnsupportedCallbackException e) {
+            throw new SaslException("Unsupported authorization callback", e);
+        } catch (IOException e) {
+            throw new SaslException("Authorization callback error", e);
+        } finally {
+            if (!callbackSuccess) {
+                // Clear the password on failure
+                passwordCallback.clearPassword();
+            }
+        }
+        String domain = domainCallback.getText();
+        String login = nameCallback.getName();
+        char[] password = passwordCallback.getPassword();
+        try {
+            if (domain == null || domain.isEmpty() || login == null || login.isEmpty()
+                    || password == null || password.length == 0)
+            {
+                // Not enough credentials, use current user account
+                if (logger.isLoggable(Level.FINEST)) {
+                    String targetName = Account.getCurrentUserNameSamCompatible();
+                    logger.log(Level.FINEST, "Using credentials for {0}", targetName);
+                }
+                return CredentialsHandle.currentPrincipal(SECURITY_PACKAGE);
+            } else {
+                // Use supplied credentials
+                logger.log(Level.FINEST, "Using credentials for {0}\\{1}", new Object[] {domain, login});
+                return CredentialsHandle.selectedPrincipal(SECURITY_PACKAGE, domain + '\\' + login, login, domain, password);
+            }
+        } finally {
+            // Clear the password when it is no longer needed
+            if (password != null) {
+                Arrays.fill(password, ' ');
+            }
+            passwordCallback.clearPassword();
+        }
     }
 
     private byte[] doFinalHandshake(byte[] challenge) throws SaslException {
@@ -279,7 +330,7 @@ public class SspiKrb5Client implements SaslClient {
         logger.log(Level.FINEST, "Preferred quality-of-protection property: {0}", qopProperty);
         clientQopPreferenceMask = orBytes(clientQopPreference);
         logger.log(Level.FINEST, "Preferred quality-of-protection mask: {0}", clientQopPreferenceMask);
-        if (clientQopPreference.length > 0 && logger.isLoggable(Level.FINE)) {
+        if (clientQopPreference.length > 0 && logger.isLoggable(Level.FINEST)) {
             logger.log(Level.FINEST, "Preferred quality-of-protection masks : {0}", bytesAsString(clientQopPreference));
         }
         String maxBufferProperty = (String) properties.get(Sasl.MAX_BUFFER);

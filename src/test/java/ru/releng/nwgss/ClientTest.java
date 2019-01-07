@@ -23,8 +23,19 @@ import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 import javax.naming.ldap.InitialLdapContext;
 import javax.naming.ldap.LdapContext;
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.callback.NameCallback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+import javax.security.sasl.RealmCallback;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.security.Provider;
 import java.security.Security;
+import java.util.Arrays;
 import java.util.Properties;
 
 @RunWith(JUnit4.class)
@@ -67,6 +78,50 @@ public class ClientTest {
         }
     }
 
+    @Test
+    public void testCredentials() {
+        Provider provider = new SspiKrb5SaslProvider();
+        Security.insertProviderAt(provider, 1);
+
+        LdapContext ldapContext;
+        try {
+            ldapContext = new InitialLdapContext(getGSSAPIPropertiesWithCallback(), null);
+        } catch (NamingException ex) {
+            throw new RuntimeException(ex);
+        }
+        SearchControls searchControls = new SearchControls();
+        searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+        searchControls.setReturningAttributes(new String[] {"cn", "sn", "userPrincipalName", "memberOf", "name"});
+        try {
+            for (int i = 0; i < 10; i++) {
+                NamingEnumeration<SearchResult> result = ldapContext.search("CN=Users,DC=CONTOSO,DC=COM",
+                        "(objectclass=organizationalPerson)", searchControls);
+                try {
+                    while (result.hasMore()) {
+                        SearchResult oneResult = result.next();
+                        System.out.println("Result: " + oneResult);
+                    }
+                } finally {
+                    result.close();
+                }
+            }
+        } catch (NamingException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            ldapContext.close();
+        } catch (NamingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Properties getGSSAPIPropertiesWithCallback() {
+        Properties result = new Properties();
+        result.put("java.naming.security.sasl.callback", new CustomCallbackHandler());
+        result.putAll(getGSSAPIProperties());
+        return result;
+    }
+
     private static Properties getGSSAPIProperties() {
         Properties result = new Properties();
         result.put("javax.security.sasl.qop", "auth-conf");
@@ -79,9 +134,38 @@ public class ClientTest {
         Properties result = new Properties();
         result.put("java.naming.factory.initial", "com.sun.jndi.ldap.LdapCtxFactory");
         result.put("java.naming.referral", "ignore");
-        result.put("java.naming.provider.url", "ldap://WIN-0JVM6LI2RKT.contoso.com:389");
+        result.put("java.naming.provider.url", "ldap://" + getLocalHostName() + ":389");
         result.put("java.naming.security.authentication", "GSSAPI");
         return result;
+    }
+
+    private static String getLocalHostName() {
+        try {
+            return InetAddress.getLocalHost().getCanonicalHostName();
+        } catch (UnknownHostException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static class CustomCallbackHandler implements CallbackHandler {
+
+        @Override
+        public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
+            for (Callback callback : callbacks) {
+                if (callback instanceof RealmCallback) {
+                    ((RealmCallback) callback).setText("CONTOSO");
+                } else if (callback instanceof NameCallback) {
+                    ((NameCallback) callback).setName("Administrator");
+                } else if (callback instanceof PasswordCallback) {
+                    char[] password = new char[] {'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+                    ((PasswordCallback) callback).setPassword(password);
+                    Arrays.fill(password, ' ');
+                } else {
+                    throw new UnsupportedCallbackException(callback);
+                }
+            }
+        }
+
     }
 
 }
