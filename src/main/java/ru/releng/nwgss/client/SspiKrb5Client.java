@@ -302,8 +302,14 @@ public class SspiKrb5Client implements SaslClient {
     }
 
     private int ntohi(byte[] input, int offset, int length) {
+        if (length <= 0) {
+            throw new IllegalArgumentException("Can not convert 0 or less bytes to integer");
+        }
         if (length > 4) {
             throw new IllegalArgumentException("Can not convert more than 4 bytes to integer");
+        }
+        if (offset >= input.length || offset + length >= input.length + 1) {
+            throw new IllegalArgumentException("Input index is out of bounds");
         }
         int result = 0;
         for (int i = 0; i < length; i++) {
@@ -314,14 +320,29 @@ public class SspiKrb5Client implements SaslClient {
     }
 
     private void htoni(int value, byte[] output, int offset, int length) {
+        if (length <= 0) {
+            throw new IllegalArgumentException("Can not convert integer to 0 or less bytes");
+        }
         if (length > 4) {
-            throw new IllegalArgumentException("Can not convert more than 4 bytes to integer");
+            throw new IllegalArgumentException("Can not convert integer to more than 4 bytes");
         }
-        int currentValue = value;
-        for (int i = offset - 1; i >- 0; i--) {
-            output[offset + i] = (byte) (currentValue & 0xff);
-            currentValue >>>= 8;
+        byte[] bytes = new byte[] {(byte)((value >> 24) & 0xff), (byte)((value >> 16) & 0xff),
+                (byte)((value >> 8) & 0xff), (byte)(value & 0xff)};
+        int significantBytesCount = bytes.length;
+        for (byte aByte : bytes) {
+            if (aByte != 0) {
+                break;
+            }
+            significantBytesCount--;
         }
+        if (significantBytesCount > length) {
+            throw new IllegalArgumentException("Not enough bytes to accommodate converted integer");
+        }
+        if (offset >= output.length || offset + length >= output.length + 1) {
+            throw new IllegalArgumentException("Output index is out of bounds");
+        }
+        int firstByteToTake = bytes.length - length;
+        System.arraycopy(bytes, firstByteToTake, output, offset, length);
     }
 
     private void parseProperties(Map<String, ?> properties) throws SaslException {

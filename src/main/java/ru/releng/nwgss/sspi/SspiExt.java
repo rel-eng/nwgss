@@ -36,6 +36,7 @@ public interface SspiExt {
             super(W32APITypeMapper.UNICODE);
         }
 
+        @Override
         public void write() {
             this.UserLength = this.User == null ? 0 : this.User.getBytes(StandardCharsets.UTF_16LE).length;
             this.DomainLength = this.Domain == null ? 0 : this.Domain.getBytes(StandardCharsets.UTF_16LE).length;
