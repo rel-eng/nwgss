@@ -5,48 +5,15 @@ plugins {
 group 'ru.releng'
 version '1.0'
 
-ext.moduleName = 'ru.releng.nwgss'
-
-sourceCompatibility = 1.11
 
 repositories {
     mavenCentral()
 }
 
-compileJava {
-    inputs.property("moduleName", moduleName)
-    doFirst {
-        options.compilerArgs = [
-                '--module-path', classpath.asPath,
-        ]
-        classpath = files()
-    }
-}
-
-compileTestJava {
-    inputs.property("moduleName", moduleName)
-    doFirst {
-        options.compilerArgs = [
-                '--module-path', classpath.asPath,
-                '--add-modules', 'junit,java.naming',
-                '--add-reads', "$moduleName=junit,java.naming",
-                '--patch-module', "$moduleName=" + files(sourceSets.test.java.srcDirs).asPath,
-        ]
-        classpath = files()
-    }
-}
-
-test {
-    inputs.property("moduleName", moduleName)
-    doFirst {
-        jvmArgs = [
-                '--module-path', classpath.asPath,
-                '--add-modules', 'ALL-MODULE-PATH',
-                '--add-reads', "$moduleName=junit,java.naming",
-                '--patch-module', "$moduleName=" + files(sourceSets.test.java.outputDir).asPath,
-        ]
-        classpath = files()
-    }
+java {
+    modularity.inferModulePath = true
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 dependencies {
